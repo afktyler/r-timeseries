@@ -1,0 +1,340 @@
+---
+title: "time series project"
+author: "Tyler Watson"
+date: "2023-04-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+knitr::opts_knit$set(root.dir = "~/timeseries")
+```
+
+```{r warning=F, message=F}
+library(tidyverse)
+library(seriation)
+library(tidyquant)
+library(forecast)
+library(readxl)
+
+```
+
+```{r}
+shangog <- read.csv("~/timeseries/shang.csv")
+
+shang_dt <- shangog[c(19796:21249),c(3,8)]
+
+
+
+shang.ts <- ts(shang_dt$TEMP, start = c(2019, 1), end = c(2022, 12), freq = 365)
+
+plot(shang.ts,xlab = "Time",ylab = "Mean Temperature",xaxt = "n",main = "Mean Temperature vs Time")
+axis(1, at = seq(2019, 2022, 1),
+labels = format(seq(2019, 2022, 1),
+digits = 2))
+
+```
+```{r}
+plot(shang.ts,xlab = "Time",ylab = "Mean Temperature",xaxt = "n",main = "Mean Temperature vs Time", xlim = c(2019,2023),ylim = c(30,100))
+axis(1, at = seq(2019, 2023, 1),
+labels = format(seq(2019, 2023, 1),
+digits = 2))
+lines(c(2022, 2022), c(0, 100))
+lines(c(2021, 2021), c(0, 100))
+text(2020, 100, "Training")
+text(2021.5, 100, "Validation")
+text(2022.5, 100, "Future")
+arrows(2019, 95, 2020.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+arrows(2021.1, 95, 2021.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+arrows(2022.1, 95, 2022.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+```
+
+
+```{r}
+nValid <- 380
+nTrain <- length(shang.ts) - nValid
+train.ts <- window(shang.ts, start = c(2019, 1),
+end = c(2019, nTrain))
+
+valid.ts <- window(shang.ts, start = c(2019, nTrain + 1),
+end = c(2019, nTrain + nValid))
+
+shang.lm <- tslm(train.ts ~ trend + I(trend^2))
+shang.lm.pred <- forecast(shang.lm, h = nValid,level = 0)
+
+shang.naive <- naive(train.ts, h = nValid, level = 0)
+shang.naive.pred <- forecast(shang.naive)
+
+plot(shang.naive.pred, ylab = "Mean Temperature",xlab = "Time", bty = "l", xaxt = "n",
+     xlim = c(2019,2023),ylim = c(35,100))
+axis(1, at = seq(2019, 2023, 1),
+labels = format(seq(2019, 2023, 1),
+digits = 2))
+lines(shang.lm$fitted, lwd = 2)
+lines(valid.ts)
+lines(c(2022, 2022), c(0, 100))
+lines(c(2021, 2021), c(0, 100))
+text(2020, 100, "Training")
+text(2021.5, 100, "Validation")
+text(2022.5, 100, "Future")
+arrows(2019, 95, 2020.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+arrows(2021.1, 95, 2021.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+arrows(2022.1, 95, 2022.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+
+accuracy(shang.naive.pred$mean, valid.ts)
+```
+
+```{r}
+accuracy(shang.naive.pred, valid.ts)
+```
+
+```{r}
+
+shang.lms <- tslm(train.ts ~ season)
+shang.lm.preds <- forecast(shang.lms, h = nValid,level = 0)
+
+shang.naives <- snaive(train.ts, h = nValid, level = 0)
+shang.naive.preds <- forecast(shang.naives)
+
+plot(shang.naive.preds, ylab = "Mean Temperature",xlab = "Time", bty = "l", xaxt = "n", 
+     xlim = c(2019,2023),ylim = c(35,100))
+axis(1, at = seq(2019, 2023, 1),labels = format(seq(2019, 2023, 1),digits = 2))
+lines(shang.lms$fitted, lwd = 2, col = "red")
+lines(valid.ts)
+lines(c(2022, 2022), c(0, 100))
+lines(c(2021, 2021), c(0, 100))
+text(2020, 100, "Training")
+text(2021.5, 100, "Validation")
+text(2022.5, 100, "Future")
+arrows(2019, 95, 2020.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+arrows(2021.1, 95, 2021.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+arrows(2022.1, 95, 2022.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+```
+
+```{r}
+accuracy(shang.naive.preds,valid.ts)
+```
+
+
+```{r}
+#roll foward
+
+fixed.nValid <- 380
+
+fixed.nTrain <- length(shang.ts) - fixed.nValid
+
+train.tsr <- window(shang.ts, start = c(2019, 1),end = c(2019, fixed.nTrain))
+
+valid.tsr <- window(shang.ts,start = c(2019, fixed.nTrain + 1),
+                   end = c(2019, fixed.nTrain + fixed.nValid))
+
+naive.fixed <- naive(train.tsr, h = fixed.nValid)
+naive.roll <- ts(shang_dt$TEMP[fixed.nTrain:(fixed.nTrain + fixed.nValid - 1)],
+                 start = c(2019, fixed.nTrain + 1),
+                 end = c(2019, fixed.nTrain + fixed.nValid),freq = 365)
+
+plot(train.tsr, ylab = "Mean Temperature",xlab = "Time", bty = "l", xaxt = "n",
+     xlim = c(2019,2023),ylim = c(35,100),main = "Roll Forward Validation")
+lines(naive.roll, lwd = 2, col = "blue", lty = 2)
+lines(valid.tsr)
+
+axis(1, at = seq(2019, 2023, 1),labels = format(seq(2019, 2023, 1),digits = 2))
+lines(c(2022, 2022), c(0, 100))
+lines(c(2021, 2021), c(0, 100))
+text(2020, 100, "Training")
+text(2021.5, 100, "Validation")
+text(2022.5, 100, "Future")
+arrows(2019, 95, 2020.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+arrows(2021.1, 95, 2021.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+arrows(2022.1, 95, 2022.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+
+
+
+```
+
+```{r}
+fixed.nValid <- 380
+
+fixed.nTrain <- length(shang.ts) - fixed.nValid
+stepsAhead <- 1
+error <- rep(0, fixed.nValid - stepsAhead + 1)
+percent.error <- rep(0, fixed.nValid - stepsAhead + 1)
+
+
+
+
+mae <- rep(0,fixed.nValid)
+rmse <- rep(0,fixed.nValid)
+mape <- rep(0,fixed.nValid)
+
+for(i in 1:36) {
+stepsAhead <- i
+error <- rep(0, fixed.nValid - stepsAhead + 1)
+percent.error <- rep(0, fixed.nValid - stepsAhead + 1)
+
+for(j in
+fixed.nTrain:(fixed.nTrain + fixed.nValid - stepsAhead))
+{
+train.ts <- window(shang.ts,start = c(2019, 1),end = c(2019, j))
+
+valid.ts <- window(shang.ts,start = c(2019, j + stepsAhead),end = c(2019, j + stepsAhead))
+
+naive.pred <- naive(train.ts, h = stepsAhead)
+
+error[j - fixed.nTrain + 1] <-valid.ts - naive.pred$mean[stepsAhead]
+percent.error[j - fixed.nTrain + 1] <-error[j - fixed.nTrain + 1] / valid.ts
+
+}
+mae[i] <- mean(abs(error))
+rmse[i] <- sqrt(mean(error^2))
+mape[i] <- mean(abs(percent.error))
+}
+
+
+```
+
+
+```{r}
+
+mean(mae)
+mean(rmse)
+mean(mape)
+
+```
+
+
+
+```{r}
+
+train.ts <- window(shang.ts, start = c(2019, 1), end = c(2019, nTrain))
+valid.ts <- window(shang.ts, start = c(2019, nTrain + 1), end = c(2019, nTrain + nValid))
+
+ma.trailing <- rollmean(train.ts,k = 12,align = "right")
+
+last.ma <- tail(ma.trailing, 365)
+
+ma.trailing.pred <- ts(rep(last.ma, nValid),
+                       start = c(2019, nTrain + 1),end = c(2019, nTrain + nValid),freq = 365)
+
+
+plot(train.ts, ylab = "Mean Temperature",xlab = "Time", bty = "l", xaxt = "n",
+     xlim = c(2019,2023),ylim = c(35,100),main = "Trail Moving Average")
+axis(1, at = seq(2019, 2023, 1),labels = format(seq(2019, 2023, 1),digits = 2))
+lines(ma.trailing, lwd = 2,col = "red")
+lines(ma.trailing.pred, lwd = 2,col = "blue", lty = 2)
+lines(valid.ts)
+lines(c(2022, 2022), c(0, 100))
+lines(c(2021, 2021), c(0, 100))
+text(2020, 100, "Training")
+text(2021.5, 100, "Validation")
+text(2022.5, 100, "Future")
+arrows(2019, 95, 2020.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+arrows(2021.1, 95, 2021.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+arrows(2022.1, 95, 2022.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+
+```
+
+```{r}
+accuracy(ma.trailing.pred, valid.ts)
+```
+
+
+
+
+
+
+
+
+
+```{r}
+nValid <- 380
+nTrain <- length(shang.ts) - nValid
+
+train.ts <- window(shang.ts,start = c(2019, 1),end = c(2019, nTrain))
+valid.ts <- window(shang.ts,start = c(2019, nTrain + 1),end = c(2019, nTrain + nValid))
+
+hwin <- ets(train.ts, model = "ZZZ")
+hwin.pred <- forecast(hwin, h = nValid, level = 0)
+plot(hwin.pred, ylab = "Mean Temperature", xlab = "Time",bty = "l",
+     main = "", flty = 2,ylim = c(30,100),xlim = c(2019,2023))
+lines(hwin.pred$fitted, lwd = 2, col = "red")
+lines(valid.ts)
+lines(c(2022, 2022), c(0, 100))
+lines(c(2021, 2021), c(0, 100))
+text(2020, 100, "Training")
+text(2021.5, 100, "Validation")
+text(2022.5, 100, "Future")
+arrows(2019, 95, 2020.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+arrows(2021.1, 95, 2021.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+arrows(2022.1, 95, 2022.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+
+accuracy(hwin.pred,valid.ts)
+```
+
+
+
+```{r}
+#exponenTial smoothing, Box-Cox transformation, ARMA errors, Trend and Seasonal components
+
+
+temp.daily.msts <- msts(shang_dt$TEMP,seasonal.periods = c(365.25))
+
+temp.daily.tbats <- tbats(temp.daily.msts)
+temp.daily.tbats.pred <- forecast(temp.daily.tbats, h = 365)
+
+
+temp.daily.stlm <- stlm(temp.daily.msts,s.window = "periodic")
+
+temp.daily.stlm.pred <- forecast(temp.daily.stlm, h = 365)
+
+
+```
+
+```{r}
+plot(temp.daily.tbats.pred, ylim = c(30, 100),
+xlab = "Year", ylab = "Daily Mean Temperature",main = "TBATS")
+axis(1, at = seq(2019, 2023, 1),labels = format(seq(2019, 2023, 1),digits = 2))
+lines(c(2022, 2022), c(0, 100))
+lines(c(2021, 2021), c(0, 100))
+text(2020, 100, "Training")
+text(2021.5, 100, "Validation")
+text(2022.5, 100, "Future")
+arrows(2019, 95, 2020.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+arrows(2021.1, 95, 2021.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+arrows(2022.1, 95, 2022.9, 95,code = 3, length = 0.1, lwd = 1,angle = 30)
+
+
+```
+```{r}
+nValidp <- 365
+nTrainp <- length(shang.ts) - nValid
+
+train.tsp <- window(shang.ts,start = c(2019, 1),end = c(2019, nTrainp))
+valid.tsp <- window(shang.ts,start = c(2019, nTrainp + 1),end = c(2019, nTrainp + nValidp))
+
+sqrt(sum((as.matrix(temp.daily.tbats.pred$mean) - as.matrix(valid.tsp))^2)/365)
+
+(sum(abs(((as.matrix(valid.tsp)-temp.daily.tbats.pred$mean))/as.matrix(valid.tsp)))/365)*100
+```
+
+
+
+
+
+
+```{r}
+#The STL method decomposes a time series into seasonal, trend, and error components using Loess
+
+
+plot(bike.daily.stlm.pred, ylim = c(30, 105),
+xlab = "Year", ylab = "Daily Mean Temperature",main = "STL + ETS ")
+
+sqrt(sum((bike.daily.stlm.pred$mean - as.matrix(valid.tsp))^2)/365)
+
+(sum(abs(((as.matrix(valid.tsp)-bike.daily.stlm.pred$mean))/as.matrix(valid.tsp)))/365)*100
+```
+
+
+
+
